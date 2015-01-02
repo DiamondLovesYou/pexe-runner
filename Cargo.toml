@@ -1,0 +1,14 @@
+[package]
+name = "pexe-runner"
+version = "0.0.0"
+authors = ["Richard Diamond <wichard@vitalitystudios.com>"]
+license = "MIT"
+readme = "README.md"
+
+[[bin]]
+name = "pexe-runner"
+path = "src/main.rs"
+
+[dependencies]
+rust-crypto = "*"
+log = "*"
