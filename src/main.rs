@@ -88,7 +88,7 @@ pub fn main() {
         cmd.arg("-o");
         cmd.arg(nexe_path.display().to_string());
         cmd.arg("--opt-level=2");
-        println!("trans cmd line: `{}`", cmd);
+        debug!("trans cmd line: `{}`", cmd);
         let mut trans = cmd.spawn().unwrap();
 
         let status = trans.wait().unwrap();
