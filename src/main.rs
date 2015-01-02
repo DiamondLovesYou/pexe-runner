@@ -9,9 +9,9 @@ use crypto::sha2::Sha512;
 use crypto::digest::Digest;
 use libc::{getgid, getuid};
 use std::os;
-use std::io::{OTHER_EXECUTE, OTHER_READ, OTHER_RWX,
+use std::io::{OTHER_EXECUTE, OTHER_READ,
               GROUP_EXECUTE, GROUP_READ, GROUP_RWX,
-              USER_RWX, ALL_PERMISSIONS};
+              USER_EXECUTE,  USER_RWX, ALL_PERMISSIONS};
 use std::io::fs::{File, PathExtensions, mkdir, mkdir_recursive, chmod};
 use std::io::process::{Command, InheritFd, ExitStatus};
 
@@ -42,7 +42,7 @@ pub fn main() {
         if !c.exists() {
             mkdir(&c, ALL_PERMISSIONS).unwrap();
         }
-        (c, OTHER_RWX)
+        (c, ALL_PERMISSIONS)
     } else if pexe_stat.perm.contains(GROUP_EXECUTE | GROUP_READ) {
         let c = cache.join("group");
         if !c.exists() {
@@ -51,10 +51,10 @@ pub fn main() {
         let gid = unsafe { getgid() };
         let c = c.join(format!("{}", gid));
         if !c.exists() {
-            mkdir(&c, GROUP_RWX).unwrap();
+            mkdir(&c, GROUP_RWX | USER_RWX).unwrap();
         }
-        (c, GROUP_RWX)
-    } else {
+        (c, GROUP_RWX | USER_RWX)
+    } else if pexe_stat.perm.contains(USER_EXECUTE) {
         let c = cache.join("user");
         if !c.exists() {
             mkdir(&c, ALL_PERMISSIONS).unwrap();
@@ -65,6 +65,8 @@ pub fn main() {
             mkdir(&c, USER_RWX).unwrap();
         }
         (c, USER_RWX)
+    } else {
+        panic!("cann't execute: permissing denied");
     };
 
     let pexe_bin = pexe.read_to_end().unwrap();
