@@ -13,7 +13,7 @@ use std::io::{OTHER_EXECUTE, OTHER_READ,
               GROUP_EXECUTE, GROUP_READ, GROUP_RWX,
               USER_EXECUTE,  USER_RWX, ALL_PERMISSIONS};
 use std::io::fs::{File, PathExtensions, mkdir, mkdir_recursive, chmod};
-use std::io::process::{Command, InheritFd, ExitStatus};
+use std::io::process::{Command, InheritFd, ExitStatus, ExitSignal};
 
 const CACHE_SUBPATH: &'static str = "pexe-runner-cache";
 // TODO: support overriding cache location.
