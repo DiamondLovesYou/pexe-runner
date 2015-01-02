@@ -93,13 +93,20 @@ pub fn main() {
         debug!("trans cmd line: `{}`", cmd);
         let mut trans = cmd.spawn().unwrap();
 
-        let status = trans.wait().unwrap();
+        let output = trans.wait_with_output().unwrap();
+        let status = output.status;
         match status {
             ExitStatus(0) => {
                 chmod(&nexe_path, perms).unwrap();
             }
-            _ => {
-                panic!("trans failed!");
+            ExitStatus(code) | ExitSignal(code) => {
+                let mut stderr = ::std::io::stdio::stderr();
+                let mut stdout = ::std::io::stdio::stdout();
+                writeln!(stderr, "`{}` failed:", cmd);
+                stdout.write(output.output.as_slice()).unwrap();
+                stderr.write(output.error.as_slice()).unwrap();
+                os::set_exit_status(code);
+                return;
             }
         }
     }
