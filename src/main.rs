@@ -91,7 +91,7 @@ pub fn main() {
         cmd.arg(nexe_path.display().to_string());
         cmd.arg("--opt-level=2");
         debug!("trans cmd line: `{}`", cmd);
-        let mut trans = cmd.spawn().unwrap();
+        let trans = cmd.spawn().unwrap();
 
         let output = trans.wait_with_output().unwrap();
         let status = output.status;
@@ -102,7 +102,7 @@ pub fn main() {
             ExitStatus(code) | ExitSignal(code) => {
                 let mut stderr = ::std::io::stdio::stderr();
                 let mut stdout = ::std::io::stdio::stdout();
-                writeln!(stderr, "`{}` failed:", cmd);
+                (writeln!(&mut stderr, "`{}` failed:", cmd)).unwrap();
                 stdout.write(output.output.as_slice()).unwrap();
                 stderr.write(output.error.as_slice()).unwrap();
                 os::set_exit_status(code);
