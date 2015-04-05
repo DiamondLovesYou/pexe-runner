@@ -19,7 +19,7 @@ const CACHE_SUBPATH: &'static str = "pexe-runner-cache";
 // TODO: support overriding cache location.
 const CACHE_BASE: &'static str = "/tmp";
 
-const RUST_PNACL_TRANS: &'static str = "rust-pnacl-trans";
+const RUST_PNACL_TRANS: &'static str = "rust_pnacl_trans";
 
 pub fn main() {
     let args = os::args();
