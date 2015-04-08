@@ -20,16 +20,16 @@ use std::fs::{File, Permissions, create_dir_all,
               set_permissions, PathExt};
 use std::process::{Command, Stdio};
 
-const ALL_PERMISSIONS: usize = 0777;
-const OTHER_EXECUTE: usize = 0001;
-const OTHER_READ: usize = 0004;
-const OTHER_RWX: usize = 0007;
-const GROUP_EXECUTE: usize = 0010;
-const GROUP_READ: usize = 0040;
-const GROUP_RWX: usize = 0070;
-const USER_EXECUTE: usize = 0100;
-const USER_READ: usize = 0400;
-const USER_RWX: usize = 0700;
+const ALL_PERMISSIONS: usize = 0o0777;
+const OTHER_EXECUTE: usize = 0o0001;
+const OTHER_READ: usize = 0o0004;
+const OTHER_RWX: usize = 0o0007;
+const GROUP_EXECUTE: usize = 0o0010;
+const GROUP_READ: usize = 0o0040;
+const GROUP_RWX: usize = 0o0070;
+const USER_EXECUTE: usize = 0o0100;
+const USER_READ: usize = 0o0400;
+const USER_RWX: usize = 0o0700;
 
 trait PermExt2 {
     fn contains(&self, mask: usize) -> bool;
