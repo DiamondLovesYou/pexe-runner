@@ -1,19 +1,45 @@
-
-#![feature(phase)]
+#![feature(libc, fs_ext, path_ext, convert, fs, exit_status)]
+#![allow(dead_code)]
 
 extern crate crypto;
 extern crate libc;
-#[phase(plugin, link)] extern crate log;
+
+#[macro_use]
+extern crate log;
+extern crate env_logger;
 
 use crypto::sha2::Sha512;
 use crypto::digest::Digest;
 use libc::{getgid, getuid};
-use std::os;
-use std::io::{OTHER_EXECUTE, OTHER_READ,
-              GROUP_EXECUTE, GROUP_READ, GROUP_RWX,
-              USER_EXECUTE,  USER_RWX, ALL_PERMISSIONS};
-use std::io::fs::{File, PathExtensions, mkdir, mkdir_recursive, chmod};
-use std::io::process::{Command, InheritFd, ExitStatus, ExitSignal};
+use std::env;
+use std::path::Path;
+use std::os::unix::fs::PermissionsExt;
+use std::io;
+use std::io::{Read, Write};
+use std::fs::{File, Permissions, create_dir_all,
+              set_permissions, PathExt};
+use std::process::{Command, Stdio};
+
+const ALL_PERMISSIONS: usize = 0777;
+const OTHER_EXECUTE: usize = 0001;
+const OTHER_READ: usize = 0004;
+const OTHER_RWX: usize = 0007;
+const GROUP_EXECUTE: usize = 0010;
+const GROUP_READ: usize = 0040;
+const GROUP_RWX: usize = 0070;
+const USER_EXECUTE: usize = 0100;
+const USER_READ: usize = 0400;
+const USER_RWX: usize = 0700;
+
+trait PermExt2 {
+    fn contains(&self, mask: usize) -> bool;
+}
+
+impl PermExt2 for Permissions {
+    fn contains(&self, mask: usize) -> bool {
+        self.mode() & (mask as i32) != 0
+    }
+}
 
 const CACHE_SUBPATH: &'static str = "pexe-runner-cache";
 // TODO: support overriding cache location.
@@ -21,29 +47,50 @@ const CACHE_BASE: &'static str = "/tmp";
 
 const RUST_PNACL_TRANS: &'static str = "rust_pnacl_trans";
 
+fn mkdir<P: AsRef<Path>>(p: P, mode: usize) -> io::Result<()> {
+    try!(create_dir_all(&p));
+    chmod(p, mode)
+}
+fn chmod<P: AsRef<Path>>(p: P, mode: usize) -> io::Result<()> {
+    let p = p.as_ref();
+    let md = try!(p.metadata());
+    let mut perms = md.permissions();
+    perms.set_mode(mode as i32);
+    set_permissions(p, perms)
+}
+
+
 pub fn main() {
-    let args = os::args();
+    env_logger::init().unwrap();
+
+    let args: Vec<String> = env::args()
+        .collect();
     if args.len() != 2 { return; }
-    let pexe_path = Path::new(args[1].as_slice());
-    let pexe_filename = Path::new(pexe_path.filename().unwrap());
+    let pexe_path = Path::new(&(args[1])[..]);
 
     let cache = Path::new(CACHE_BASE).join(CACHE_SUBPATH);
     if !cache.exists() {
-        mkdir_recursive(&cache, ALL_PERMISSIONS).unwrap();
+        mkdir(&cache, ALL_PERMISSIONS).unwrap();
     }
 
     // if the binary is rx by the world, don't use a user prefix when caching.
 
-    let mut pexe = File::open(&pexe_path).unwrap();
+    let pexe = File::open(&pexe_path);
+    if pexe.is_err() {
+        panic!("could not open Pexe file!");
+    }
+    let mut pexe = pexe.unwrap();
 
-    let pexe_stat = pexe.stat().unwrap();
-    let (cache_dir, perms) = if pexe_stat.perm.contains(OTHER_EXECUTE | OTHER_READ) {
+    let pexe_filename = Path::new(pexe_path.file_name().unwrap());
+
+    let pexe_stat = pexe.metadata().unwrap();
+    let (cache_dir, perms) = if pexe_stat.permissions().contains(OTHER_EXECUTE | OTHER_READ) {
         let c = cache.join("other");
         if !c.exists() {
             mkdir(&c, ALL_PERMISSIONS).unwrap();
         }
         (c, ALL_PERMISSIONS)
-    } else if pexe_stat.perm.contains(GROUP_EXECUTE | GROUP_READ) {
+    } else if pexe_stat.permissions().contains(GROUP_EXECUTE | GROUP_READ) {
         let c = cache.join("group");
         if !c.exists() {
             mkdir(&c, ALL_PERMISSIONS).unwrap();
@@ -54,7 +101,7 @@ pub fn main() {
             mkdir(&c, GROUP_RWX | USER_RWX).unwrap();
         }
         (c, GROUP_RWX | USER_RWX)
-    } else if pexe_stat.perm.contains(USER_EXECUTE) {
+    } else if pexe_stat.permissions().contains(USER_EXECUTE) {
         let c = cache.join("user");
         if !c.exists() {
             mkdir(&c, ALL_PERMISSIONS).unwrap();
@@ -68,8 +115,9 @@ pub fn main() {
     } else {
         panic!("cann't execute: permissing denied");
     };
-
-    let pexe_bin = pexe.read_to_end().unwrap();
+    let mut pexe_bin = Vec::new();
+    pexe.read_to_end(&mut pexe_bin)
+        .unwrap();
 
     let mut hasher = Sha512::new();
     hasher.input(pexe_bin.as_slice());
@@ -90,22 +138,22 @@ pub fn main() {
         cmd.arg("-o");
         cmd.arg(nexe_path.display().to_string());
         cmd.arg("--opt-level=2");
-        debug!("trans cmd line: `{}`", cmd);
+        debug!("trans cmd line: `{:?}`", cmd);
         let trans = cmd.spawn().unwrap();
 
         let output = trans.wait_with_output().unwrap();
         let status = output.status;
         match status {
-            ExitStatus(0) => {
+            _ if status.success() => {
                 chmod(&nexe_path, perms).unwrap();
             }
-            ExitStatus(code) | ExitSignal(code) => {
-                let mut stderr = ::std::io::stdio::stderr();
-                let mut stdout = ::std::io::stdio::stdout();
-                (writeln!(&mut stderr, "`{}` failed:", cmd)).unwrap();
-                stdout.write(output.output.as_slice()).unwrap();
-                stderr.write(output.error.as_slice()).unwrap();
-                os::set_exit_status(code);
+            _ => {
+                let mut stderr = ::std::io::stderr();
+                let mut stdout = ::std::io::stdout();
+                (writeln!(&mut stderr, "`{:?}` failed:", cmd)).unwrap();
+                stdout.write(output.stdout.as_slice()).unwrap();
+                stderr.write(output.stderr.as_slice()).unwrap();
+                env::set_exit_status(status.code().unwrap_or(1));
                 return;
             }
         }
@@ -126,22 +174,21 @@ pub fn main() {
                                 "-l".to_string(), "/dev/null".to_string());
     sel_ldr_args.push("--".to_string());
     sel_ldr_args.push(nexe_path.display().to_string());
-    sel_ldr_args.extend(args.slice_from(2).to_vec().into_iter());
+    for arg in &args[2..] {
+        sel_ldr_args.push(arg.clone());
+    }
 
     let mut cmd = Command::new(nacl_helper_bootstrap);
     cmd.args(sel_ldr_args.as_slice());
-    cmd.stdout(InheritFd(libc::STDOUT_FILENO));
-    cmd.stderr(InheritFd(libc::STDERR_FILENO));
-    debug!("sel_ldr cmd line: `{}`", cmd);
+    cmd.stdout(Stdio::inherit());
+    cmd.stderr(Stdio::inherit());
+    debug!("sel_ldr cmd line: `{:?}`", cmd);
     match cmd.spawn() {
         Ok(mut process) => {
             match process.wait() {
-                Ok(ExitStatus(status)) => {
-                    os::set_exit_status(status);
-                }
-                Ok(_) => {
-                    os::set_exit_status(1);
-                }
+                Ok(status) => {
+                    env::set_exit_status(status.code().unwrap_or(1));
+                },
                 Err(e) => {
                     panic!("couldn't wait on sel_ldr: {}", e);
                 }
