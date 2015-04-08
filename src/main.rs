@@ -65,7 +65,6 @@ pub fn main() {
 
     let args: Vec<String> = env::args()
         .collect();
-    if args.len() != 2 { return; }
     let pexe_path = Path::new(&(args[1])[..]);
 
     let cache = Path::new(CACHE_BASE).join(CACHE_SUBPATH);
