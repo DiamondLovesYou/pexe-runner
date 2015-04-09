@@ -166,11 +166,17 @@ pub fn main() {
 
     let mut sel_ldr_args = vec!(sel_ldr_bin.display().to_string(),
                                 "--r_debug=0xXXXXXXXXXXXXXXXX".to_string(),
-                                "--reserved_at_zero=0xXXXXXXXXXXXXXXXX".to_string(),
-                                //"-a".to_string(),
-                                "-B".to_string(),
-                                irt_core.display().to_string(),
-                                "-l".to_string(), "/dev/null".to_string());
+                                "--reserved_at_zero=0xXXXXXXXXXXXXXXXX".to_string());
+    match env::var("ALLOW_FILE_ACCESS") {
+        Ok(ref v) if v != "0" => {
+            sel_ldr_args.push("-a".to_string());
+        },
+        _ => {},
+    }
+    sel_ldr_args.push("-B".to_string());
+    sel_ldr_args.push(irt_core.display().to_string());
+    sel_ldr_args.push("-l".to_string());
+    sel_ldr_args.push("/dev/null".to_string());
     sel_ldr_args.push("--".to_string());
     sel_ldr_args.push(nexe_path.display().to_string());
     for arg in &args[2..] {
