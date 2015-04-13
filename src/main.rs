@@ -176,6 +176,7 @@ pub fn main() {
     match env::var("DEBUG_PEXE") {
         Ok(ref v) if v != "0" => {
             sel_ldr_args.push("-g".to_string());
+            println!("note: the nexe path is `{}`", nexe_path.display());
         },
         _ => {},
     }
