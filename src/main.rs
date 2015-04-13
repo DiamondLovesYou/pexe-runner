@@ -173,6 +173,13 @@ pub fn main() {
         },
         _ => {},
     }
+    match env::var("DEBUG_PEXE") {
+        Ok(ref v) if v != "0" => {
+            sel_ldr_args.push("-g".to_string());
+        },
+        _ => {},
+    }
+
     sel_ldr_args.push("-B".to_string());
     sel_ldr_args.push(irt_core.display().to_string());
     sel_ldr_args.push("-l".to_string());
