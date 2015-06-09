@@ -37,7 +37,7 @@ trait PermExt2 {
 
 impl PermExt2 for Permissions {
     fn contains(&self, mask: usize) -> bool {
-        self.mode() & (mask as i32) != 0
+        self.mode() & (mask as u32) != 0
     }
 }
 
@@ -55,7 +55,7 @@ fn chmod<P: AsRef<Path>>(p: P, mode: usize) -> io::Result<()> {
     let p = p.as_ref();
     let md = try!(p.metadata());
     let mut perms = md.permissions();
-    perms.set_mode(mode as i32);
+    perms.set_mode(mode as u32);
     set_permissions(p, perms)
 }
 
